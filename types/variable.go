@@ -22,8 +22,6 @@ import (
 	"strconv"
 )
 
-var regexVarEnv = regexp.MustCompile(`{%ENV:([^ ]+):ENDENV%}`)
-
 type Variable struct {
 	rawVariable string
 	variable    string
