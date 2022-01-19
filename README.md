@@ -30,7 +30,7 @@
 		"content-type": "application/json",
 		"timeout": 30,
 		"body_load_file": "/home/user/login-data.json"
-        },
+        }
     ]
 }
 ```
