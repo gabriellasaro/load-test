@@ -6,30 +6,30 @@
     "loops": 1,
     "parallel": 1,
     "variables": [
-        {
-            "key": "subdomain",
-            "value": "page"
-        },
+	{
+		"key": "subdomain",
+		"value": "page"
+	},
     ],
     "cycle": [
         {
-            "url": "https://{%VAR:subdomain:ENDVAR%}.example.com/"
+		"url": "https://{%VAR:subdomain:ENDVAR%}.example.com/"
         },
         {
-            "if": "== {%RESP[0]:STATUS_CODE:ENDRESP%} 200",
-            "url": "https://{%VAR:subdomain:ENDVAR%}.example.com/new-account",
-            "method": "POST",
-			"body_json": {
-				"username": "admin",
-				"passworld": "admin"
-			}
+		"if": "== {%RESP[0]:STATUS_CODE:ENDRESP%} 200",
+		"url": "https://{%VAR:subdomain:ENDVAR%}.example.com/new-account",
+		"method": "POST",
+		"body_json": {
+			"username": "admin",
+			"passworld": "admin"
+		}
         },
         {
-            "if": "== {%PATH[1]:message.details:ENDPATH%} successfully created",
-            "url": "https://{%VAR:subdomain:ENDVAR%}.example.com/login",
-            "content-type": "application/json",
-            "timeout": 30,
-            "body_load_file": "/home/user/login-data.json"
+		"if": "== {%PATH[1]:message.details:ENDPATH%} successfully created",
+		"url": "https://{%VAR:subdomain:ENDVAR%}.example.com/login",
+		"content-type": "application/json",
+		"timeout": 30,
+		"body_load_file": "/home/user/login-data.json"
         },
     ]
 }
