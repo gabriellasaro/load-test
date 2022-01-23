@@ -84,7 +84,11 @@ func (lt *DataTest) newLogHistory() {
 	}
 }
 
-func (lt *DataTest) sendDataToHistory(data string) {
+func (lt *DataTest) sendDataToHistory(data string, print bool) {
+	if print {
+		fmt.Println(data)
+	}
+
 	if !lt.logDisabled() {
 		lt.history.Send(data)
 	}
@@ -178,7 +182,7 @@ func Run(filename string) error {
 	}
 
 	load.newLogHistory()
-	load.sendDataToHistory("HISTORY\n")
+	load.sendDataToHistory("HISTORY\n", false)
 
 	loop := 1
 	for {
@@ -186,7 +190,7 @@ func Run(filename string) error {
 
 		wgLoop.Add(load.workersPerLoop())
 
-		load.sendDataToHistory(fmt.Sprintf("\nLOOP %d\n", loop))
+		load.sendDataToHistory(fmt.Sprintf("\nLOOP %d\n", loop), true)
 
 		if err := load.startLogForLoop(loop); err != nil {
 			return err
@@ -209,10 +213,12 @@ func Run(filename string) error {
 				if err != nil {
 					load.sendDataToHistory(
 						fmt.Sprintf("%s: LOOP: %d | WORKER: %d | ERROR: %q", logTime, loop, worker, err),
+						true,
 					)
 				} else {
 					load.sendDataToHistory(
 						fmt.Sprintf("%s: LOOP: %d | WORKER: %d | SUCCESS", logTime, loop, worker),
+						true,
 					)
 				}
 			}(w)
