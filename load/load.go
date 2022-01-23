@@ -19,18 +19,25 @@ package load
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"fmt"
+	"github.com/gabriellasaro/load-test/logwriter"
+	"github.com/gabriellasaro/load-test/types"
 	"os"
+	"path"
 	"sync"
+	"time"
 )
 
 type DataTest struct {
-	Loops     int        `json:"loops"`
-	Parallel  int        `json:"parallel"`
+	Loops     int       `json:"loops"`
+	Parallel  int       `json:"parallel"`
+	LogFolder types.Str `json:"log"`
+	history   *logwriter.LogWriter
 	Variables []Variable `json:"variables"`
 }
 
 type Cycle struct {
+	log   *Log
 	Steps []*Step `json:"cycle"`
 }
 
@@ -50,6 +57,10 @@ func (lt *DataTest) workersPerLoop() int {
 	return lt.Parallel
 }
 
+func (lt *DataTest) logFolder() string {
+	return lt.LogFolder.TrimSpace().String()
+}
+
 func (lt *DataTest) preload() error {
 	if lt.Loops < 0 {
 		return errors.New("\"loops\" must be greater than zero")
@@ -60,6 +71,53 @@ func (lt *DataTest) preload() error {
 	}
 
 	if err := lt.validateVariables(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (lt *DataTest) newLogHistory() {
+	if !lt.logDisabled() {
+		lt.history = logwriter.NewLogWriter(path.Join(lt.logFolder(), "history.txt"))
+		lt.history.Writer()
+	}
+}
+
+func (lt *DataTest) sendDataToHistory(data string) {
+	if !lt.logDisabled() {
+		lt.history.Send(data)
+	}
+}
+
+func (lt *DataTest) waitHistory() {
+	if !lt.logDisabled() {
+		lt.history.Wait()
+	}
+}
+
+func (lt *DataTest) logDisabled() bool {
+	return lt.LogFolder.TrimSpace().IsEmpty()
+}
+
+func (lt *DataTest) startLog() error {
+	if lt.logDisabled() {
+		return nil
+	}
+
+	if err := startLogFolder(lt.logFolder()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (lt *DataTest) startLogForLoop(loop int) error {
+	if lt.LogFolder.TrimSpace().IsEmpty() {
+		return nil
+	}
+
+	if err := startLogFolder(path.Join(lt.logFolder(), fmt.Sprintf("%d", loop))); err != nil {
 		return err
 	}
 
@@ -92,6 +150,12 @@ func (c *Cycle) execute(variables []*Variable) error {
 	return nil
 }
 
+func (c *Cycle) setLog(destinationFolder types.Str, loop, worker int) {
+	if !destinationFolder.TrimSpace().IsEmpty() {
+		c.log = newLog(destinationFolder.String(), loop, worker)
+	}
+}
+
 func Run(filename string) error {
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -109,11 +173,24 @@ func Run(filename string) error {
 
 	variables := load.getVariablesForReplace()
 
-	var wg sync.WaitGroup
+	if err := load.startLog(); err != nil {
+		return err
+	}
+
+	load.newLogHistory()
+	load.sendDataToHistory("HISTORY\n")
 
 	loop := 1
 	for {
-		wg.Add(load.workersPerLoop())
+		var wgLoop sync.WaitGroup
+
+		wgLoop.Add(load.workersPerLoop())
+
+		load.sendDataToHistory(fmt.Sprintf("\nLOOP %d\n", loop))
+
+		if err := load.startLogForLoop(loop); err != nil {
+			return err
+		}
 
 		for w := 1; w <= load.workersPerLoop(); w++ {
 			var cycle Cycle
@@ -121,18 +198,27 @@ func Run(filename string) error {
 				return err
 			}
 
+			cycle.setLog(load.LogFolder, loop, w)
+
 			go func(worker int) {
-				defer wg.Done()
+				defer wgLoop.Done()
+
 				err := cycle.execute(variables)
+				logTime := time.Now().Format("01-02-2006 15:04:05")
+
 				if err != nil {
-					log.Printf("GROUP: %d | WORKER: %d | ERROR: %q", loop, worker, err)
+					load.sendDataToHistory(
+						fmt.Sprintf("%s: LOOP: %d | WORKER: %d | ERROR: %q", logTime, loop, worker, err),
+					)
 				} else {
-					log.Printf("GROUP: %d | WORKER: %d | SUCCESS", loop, worker)
+					load.sendDataToHistory(
+						fmt.Sprintf("%s: LOOP: %d | WORKER: %d | SUCCESS", logTime, loop, worker),
+					)
 				}
 			}(w)
 		}
 
-		wg.Wait()
+		wgLoop.Wait()
 
 		if loop == load.totalLoops() {
 			break
@@ -140,6 +226,8 @@ func Run(filename string) error {
 
 		loop += 1
 	}
+
+	load.waitHistory()
 
 	return nil
 }

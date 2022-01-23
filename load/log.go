@@ -14,24 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package types
+package load
 
-import "strings"
+import (
+	"os"
+)
 
-type Str string
-
-func (s Str) String() string {
-	return string(s)
+type Log struct {
+	loop   int
+	worker int
+	folder string
 }
 
-func (s Str) ToUpper() Str {
-	return Str(strings.ToUpper(string(s)))
+func newLog(destinationFolder string, loop, worker int) *Log {
+	return &Log{
+		loop:   loop,
+		worker: worker,
+		folder: destinationFolder,
+	}
 }
 
-func (s Str) TrimSpace() Str {
-	return Str(strings.TrimSpace(string(s)))
-}
+func startLogFolder(folder string) error {
+	if err := os.Mkdir(folder, 0775); err != nil {
+		return err
+	}
 
-func (s Str) IsEmpty() bool {
-	return s == ""
+	return nil
 }

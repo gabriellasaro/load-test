@@ -5,6 +5,7 @@
 {
     "loops": 1,
     "parallel": 1,
+    "log": "path_to_folder",
     "variables": [
 	{
 		"key": "subdomain",
@@ -42,6 +43,9 @@
 #### Parallel
 - Número de execuções paralelas do ciclo.
 - Valor padrão: 1
+
+#### Log
+- Para obter informações de log é necessário informar uma pasta de destino
 
 #### Tipos de variáveis:
 - Obter um valor definido no objeto **variables**:
