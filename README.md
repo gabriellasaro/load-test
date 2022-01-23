@@ -28,6 +28,7 @@
         {
 		"if": "== {%PATH[1]:message.details:ENDPATH%} successfully created",
 		"url": "https://{%VAR:subdomain:ENDVAR%}.example.com/login",
+		"method": "POST",
 		"content-type": "application/json",
 		"timeout": 30,
 		"body_load_file": "/home/user/login-data.json"
