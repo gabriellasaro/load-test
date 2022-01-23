@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/gabriellasaro/load-test/logwriter"
 	"github.com/gabriellasaro/load-test/types"
+	"log"
 	"os"
 	"path"
 	"sync"
@@ -37,7 +38,7 @@ type DataTest struct {
 }
 
 type Cycle struct {
-	log   *Log
+	log   *LogByWorker
 	Steps []*Step `json:"cycle"`
 }
 
@@ -142,7 +143,7 @@ func (c *Cycle) execute(variables []*Variable) error {
 	}
 
 	for i, step := range c.Steps {
-		if err := c.Steps[i].preload(i); err != nil {
+		if err := c.Steps[i].preload(i, c.log); err != nil {
 			return err
 		}
 
@@ -154,9 +155,13 @@ func (c *Cycle) execute(variables []*Variable) error {
 	return nil
 }
 
-func (c *Cycle) setLog(destinationFolder types.Str, loop, worker int) {
+func (c *Cycle) startLogByWorker(destinationFolder types.Str, loop, worker int) {
 	if !destinationFolder.TrimSpace().IsEmpty() {
-		c.log = newLog(destinationFolder.String(), loop, worker)
+		c.log = newLogByWorker(path.Join(destinationFolder.TrimSpace().String(), fmt.Sprintf("%d/%d", loop, worker)), loop, worker)
+
+		if err := startLogFolder(c.log.folder); err != nil {
+			log.Fatalln(err)
+		}
 	}
 }
 
@@ -202,7 +207,7 @@ func Run(filename string) error {
 				return err
 			}
 
-			cycle.setLog(load.LogFolder, loop, w)
+			cycle.startLogByWorker(load.LogFolder, loop, w)
 
 			go func(worker int) {
 				defer wgLoop.Done()

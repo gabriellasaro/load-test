@@ -50,9 +50,9 @@ func validateEqualityOperator(op string) (operator string, err error) {
 	return
 }
 
-func (c *Step) getArgsOfCondition() []string {
+func (s *Step) getArgsOfCondition() []string {
 	args := make([]string, 0)
-	argsRaw := strings.Split(c.ConditionRaw.TrimSpace().String(), " ")
+	argsRaw := strings.Split(s.ConditionRaw.TrimSpace().String(), " ")
 
 	var (
 		rightArgument string
@@ -79,61 +79,61 @@ func (c *Step) getArgsOfCondition() []string {
 	return args
 }
 
-func (c *Step) preloadIf() error {
-	if c.ConditionRaw == nil {
+func (s *Step) preloadIf() error {
+	if s.ConditionRaw == nil {
 		return nil
 	}
 
-	if c.index == 0 {
+	if s.index == 0 {
 		return errors.New("cannot use if statement in cycle[0]")
 	}
 
-	cond := c.getArgsOfCondition()
+	cond := s.getArgsOfCondition()
 	if len(cond) != 3 {
-		return fmt.Errorf("the condition (%s) must be composed of 3 parameters", c.ConditionRaw)
+		return fmt.Errorf("the condition (%s) must be composed of 3 parameters", s.ConditionRaw)
 	}
 
-	c.condition = new(Condition)
+	s.condition = new(Condition)
 
 	operador, err := validateEqualityOperator(cond[0])
 	if err != nil {
 		return err
 	}
 
-	c.condition.equalityOperator = operador
-	c.condition.arguments[0] = cond[1]
-	c.condition.arguments[1] = cond[2]
+	s.condition.equalityOperator = operador
+	s.condition.arguments[0] = cond[1]
+	s.condition.arguments[1] = cond[2]
 
 	return nil
 }
 
-func (c *Step) setValuesForCondition(variables []*Variable, cycle *[]*Step) error {
-	value0, err := c.applyVariables(variables, cycle, c.condition.arguments[0])
+func (s *Step) setValuesForCondition(variables []*Variable, cycle *[]*Step) error {
+	value0, err := s.applyVariables(variables, cycle, s.condition.arguments[0])
 	if err != nil {
 		return err
 	}
-	c.condition.values[0] = value0
+	s.condition.values[0] = value0
 
-	value1, err := c.applyVariables(variables, cycle, c.condition.arguments[1])
+	value1, err := s.applyVariables(variables, cycle, s.condition.arguments[1])
 	if err != nil {
 		return err
 	}
-	c.condition.values[1] = value1
+	s.condition.values[1] = value1
 
 	return nil
 }
 
-func (c *Step) executeIf(variables []*Variable, cycle *[]*Step) error {
-	if c.condition == nil {
+func (s *Step) executeIf(variables []*Variable, cycle *[]*Step) error {
+	if s.condition == nil {
 		return nil
 	}
 
-	if err := c.setValuesForCondition(variables, cycle); err != nil {
+	if err := s.setValuesForCondition(variables, cycle); err != nil {
 		return err
 	}
 
-	if apply := c.condition.applyCondition(); !apply {
-		return fmt.Errorf("(%s %s %s) -> false", c.condition.values[0], c.condition.equalityOperator, c.condition.values[1])
+	if apply := s.condition.applyCondition(); !apply {
+		return fmt.Errorf("(%s %s %s) -> false", s.condition.values[0], s.condition.equalityOperator, s.condition.values[1])
 	}
 
 	return nil

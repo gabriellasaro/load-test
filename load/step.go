@@ -42,9 +42,10 @@ type Step struct {
 	index         int
 	preloadedBody string
 	response      *ResponseCycle
+	log           *LogByWorker
 }
 
-func (c *Step) applyVariables(variables []*Variable, cycle *[]*Step, data string) (string, error) {
+func (s *Step) applyVariables(variables []*Variable, cycle *[]*Step, data string) (string, error) {
 	data = types.ReplaceKeyByValue(variables, data)
 
 	env, err := getEnvironmentVariables(data)
@@ -53,13 +54,13 @@ func (c *Step) applyVariables(variables []*Variable, cycle *[]*Step, data string
 	}
 	data = types.ReplaceKeyByValue(env, data)
 
-	paths, err := getPathVariables(c.index, data, cycle)
+	paths, err := getPathVariables(s.index, data, cycle)
 	if err != nil {
 		return "", err
 	}
 	data = types.ReplaceKeyByValue(paths, data)
 
-	resp, err := getResponseVariables(c.index, cycle, data)
+	resp, err := getResponseVariables(s.index, cycle, data)
 	if err != nil {
 		return "", err
 	}
@@ -68,43 +69,43 @@ func (c *Step) applyVariables(variables []*Variable, cycle *[]*Step, data string
 	return data, nil
 }
 
-func (c *Step) getURL(variables []*Variable, cycle *[]*Step) (string, error) {
-	return c.applyVariables(variables, cycle, c.URL.TrimSpace().String())
+func (s *Step) getURL(variables []*Variable, cycle *[]*Step) (string, error) {
+	return s.applyVariables(variables, cycle, s.URL.TrimSpace().String())
 }
 
-func (c *Step) getMethod() string {
-	return c.Method.TrimSpace().ToUpper().String()
+func (s *Step) getMethod() string {
+	return s.Method.TrimSpace().ToUpper().String()
 }
 
-func (c *Step) getContentType() string {
-	return c.ContentType.ToUpper().String()
+func (s *Step) getContentType() string {
+	return s.ContentType.ToUpper().String()
 }
 
-func (c *Step) preloadBody() error {
-	body := c.Body.TrimSpace().String()
+func (s *Step) preloadBody() error {
+	body := s.Body.TrimSpace().String()
 	if len(body) > 0 {
-		c.preloadedBody = body
-	} else if c.BodyJSON != nil {
-		content, err := json.Marshal(c.BodyJSON)
+		s.preloadedBody = body
+	} else if s.BodyJSON != nil {
+		content, err := json.Marshal(s.BodyJSON)
 		if err != nil {
 			return err
 		}
 
-		c.preloadedBody = string(content)
-	} else if len(c.BodyLoadFile) > 0 {
-		content, err := os.ReadFile(c.BodyLoadFile)
+		s.preloadedBody = string(content)
+	} else if len(s.BodyLoadFile) > 0 {
+		content, err := os.ReadFile(s.BodyLoadFile)
 		if err != nil {
 			return err
 		}
 
-		c.preloadedBody = string(content)
+		s.preloadedBody = string(content)
 	}
 
 	return nil
 }
 
-func (c *Step) getBodyReader(variables []*Variable, cycles *[]*Step) (io.Reader, error) {
-	body, err := c.applyVariables(variables, cycles, c.preloadedBody)
+func (s *Step) getBodyReader(variables []*Variable, cycles *[]*Step) (io.Reader, error) {
+	body, err := s.applyVariables(variables, cycles, s.preloadedBody)
 	if err != nil {
 		return nil, err
 	}
@@ -112,68 +113,70 @@ func (c *Step) getBodyReader(variables []*Variable, cycles *[]*Step) (io.Reader,
 	return strings.NewReader(body), nil
 }
 
-func (c *Step) preload(index int) error {
-	c.index = index
+func (s *Step) preload(index int, log *LogByWorker) error {
+	s.index = index
 
-	if err := c.preloadIf(); err != nil {
+	if err := s.preloadIf(); err != nil {
 		return err
 	}
 
-	if len(c.URL) == 0 {
+	if len(s.URL) == 0 {
 		return fmt.Errorf("cycle[%d].url cannot be empty", index)
 	}
 
-	if len(c.getMethod()) == 0 {
-		c.Method = "GET"
+	if len(s.getMethod()) == 0 {
+		s.Method = "GET"
 	}
 
-	if c.getMethod() != "GET" && c.BodyJSON == nil && c.getContentType() == "" {
+	if s.getMethod() != "GET" && s.BodyJSON == nil && s.getContentType() == "" {
 		return errors.New("for your request type it is necessary to inform the content_type")
-	} else if c.getContentType() == "" && c.BodyJSON != nil {
-		c.ContentType = "application/json"
+	} else if s.getContentType() == "" && s.BodyJSON != nil {
+		s.ContentType = "application/json"
 	}
 
-	err := c.preloadBody()
+	err := s.preloadBody()
 	if err != nil {
 		return err
 	}
+
+	s.setLog(log)
 
 	return nil
 }
 
-func (c *Step) execute(variables []*Variable, cycles *[]*Step) error {
-	if err := c.executeIf(variables, cycles); err != nil {
-		return fmt.Errorf("condition (%s) is not satisfied: %s", c.ConditionRaw, err.Error())
+func (s *Step) execute(variables []*Variable, cycles *[]*Step) error {
+	if err := s.executeIf(variables, cycles); err != nil {
+		return fmt.Errorf("condition (%s) is not satisfied: %s", s.ConditionRaw, err.Error())
 	}
 
-	url, err := c.getURL(variables, cycles)
+	url, err := s.getURL(variables, cycles)
 	if err != nil {
 		return err
 	}
 
-	body, err := c.getBodyReader(variables, cycles)
+	body, err := s.getBodyReader(variables, cycles)
 	if err != nil {
 		return err
 	}
 
 	timeStart := time.Now()
 
-	req, err := http.NewRequest(c.getMethod(), url, body)
+	req, err := http.NewRequest(s.getMethod(), url, body)
 	if err != nil {
-		return fmt.Errorf("cycle[%d]: %s", c.index, err.Error())
+		return fmt.Errorf("cycle[%d]: %s", s.index, err.Error())
 	}
 
-	if c.getContentType() != "" {
-		req.Header.Set("Content-Type", c.getContentType())
+	if s.getContentType() != "" {
+		req.Header.Set("Content-Type", s.getContentType())
 	}
 
-	for _, item := range c.Header {
+	for _, item := range s.Header {
 		req.Header.Set(item.Key(), item.Value())
 	}
 
 	client := &http.Client{}
-	if c.Timeout != nil {
-		client.Timeout = time.Second * (*c.Timeout)
+	if s.Timeout != nil {
+		client.Timeout = time.Second * (*s.Timeout)
 	}
 
 	resp, err := client.Do(req)
@@ -193,9 +196,17 @@ func (c *Step) execute(variables []*Variable, cycles *[]*Step) error {
 
 	responseCycle.Body = responseBody
 	responseCycle.Duration = time.Since(timeStart)
-	c.response = responseCycle
+	s.response = responseCycle
+
+	s.log.saveBody(s.index, responseBody, resp.Header.Get("content-type"))
 
 	return nil
+}
+
+func (s *Step) setLog(log *LogByWorker) {
+	if log != nil {
+		s.log = log
+	}
 }
 
 func getStepByIndex(cycle *[]*Step, index int) (*Step, error) {

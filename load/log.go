@@ -17,20 +17,49 @@ limitations under the License.
 package load
 
 import (
+	"fmt"
+	"log"
 	"os"
+	"path"
+	"strings"
 )
 
-type Log struct {
+type LogByWorker struct {
 	loop   int
 	worker int
 	folder string
 }
 
-func newLog(destinationFolder string, loop, worker int) *Log {
-	return &Log{
+func newLogByWorker(destinationFolder string, loop, worker int) *LogByWorker {
+	return &LogByWorker{
 		loop:   loop,
 		worker: worker,
 		folder: destinationFolder,
+	}
+}
+
+func (lw *LogByWorker) pathToBodyFolder(index int) string {
+	return fmt.Sprintf("body/%d", index)
+}
+
+func (lw *LogByWorker) createFolderForStep(name string) {
+	if err := os.MkdirAll(path.Join(lw.folder, name), 0775); err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func (lw *LogByWorker) saveBody(index int, data []byte, contentType string) {
+	if lw != nil {
+		ext := ".txt"
+		if strings.Contains(contentType, "json") {
+			ext = ".json"
+		}
+
+		lw.createFolderForStep(lw.pathToBodyFolder(index))
+
+		if err := os.WriteFile(path.Join(lw.folder, lw.pathToBodyFolder(index), "response-body"+ext), data, 0666); err != nil {
+			log.Fatalln(err)
+		}
 	}
 }
 
