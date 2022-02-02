@@ -44,10 +44,6 @@ func (lw *LogByWorker) logDisabled() bool {
 	return lw == nil
 }
 
-func (lw *LogByWorker) pathToBodyFolder(index int) string {
-	return fmt.Sprintf("body/%d", index)
-}
-
 func (lw *LogByWorker) createFolderForStep(name string) {
 	if err := os.MkdirAll(path.Join(lw.folder, name), 0775); err != nil {
 		log.Fatalln(err)
@@ -61,9 +57,9 @@ func (lw *LogByWorker) saveBody(index int, data []byte, contentType string) {
 			ext = ".json"
 		}
 
-		lw.createFolderForStep(lw.pathToBodyFolder(index))
+		lw.createFolderForStep("body")
 
-		if err := os.WriteFile(path.Join(lw.folder, lw.pathToBodyFolder(index), "response-body"+ext), data, 0666); err != nil {
+		if err := os.WriteFile(path.Join(lw.folder, fmt.Sprintf("body/%d.resp%s", index, ext)), data, 0666); err != nil {
 			log.Fatalln(err)
 		}
 	}
