@@ -188,6 +188,8 @@ func (s *Step) execute(variables []*Variable, cycles *[]*Step) error {
 
 	responseCycle := new(ResponseCycle)
 	responseCycle.StatusCode = resp.StatusCode
+	responseCycle.URL = url
+	responseCycle.Duration = time.Since(timeStart)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -195,7 +197,6 @@ func (s *Step) execute(variables []*Variable, cycles *[]*Step) error {
 	}
 
 	responseCycle.Body = responseBody
-	responseCycle.Duration = time.Since(timeStart)
 	s.response = responseCycle
 
 	s.log.saveBody(s.index, responseBody, resp.Header.Get("content-type"))
@@ -206,6 +207,22 @@ func (s *Step) execute(variables []*Variable, cycles *[]*Step) error {
 func (s *Step) setLog(log *LogByWorker) {
 	if log != nil {
 		s.log = log
+	}
+}
+
+func (s *Step) saveResponseDataToLog(index int, err error) {
+	s.log.sendDataToHistory(fmt.Sprintf("STEP: %d", index))
+
+	if s.response != nil {
+		s.log.sendDataToHistory(fmt.Sprintf("\tURL: %s", s.response.URL))
+		s.log.sendDataToHistory(fmt.Sprintf("\tMETHOD: %s | CONTENT-TYPE: %s", s.getMethod(), s.getContentType()))
+		s.log.sendDataToHistory(fmt.Sprintf("\tSTATUS CODE: %d", s.response.StatusCode))
+		s.log.sendDataToHistory(fmt.Sprintf("\tDURATION: %s", s.response.Duration))
+	}
+
+	if err != nil {
+		s.log.sendDataToHistory(fmt.Sprintf("\tSTOP EXECUTION BY ERROR: %s\n", err.Error()))
+		s.log.sendDataToHistory(fmt.Sprintf("STEPS PERFORMED SUCCESSFULLY: %d", index-1))
 	}
 }
 

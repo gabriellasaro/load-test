@@ -142,15 +142,23 @@ func (c *Cycle) execute(variables []*Variable) error {
 		return err
 	}
 
+	c.log.newLogHistory()
+	c.log.sendDataToHistory(fmt.Sprintf("STEPS TO RUN: %d [0-%d]\n", len(c.Steps), len(c.Steps)-1))
+
 	for i, step := range c.Steps {
 		if err := c.Steps[i].preload(i, c.log); err != nil {
 			return err
 		}
 
-		if err := step.execute(variables, &c.Steps); err != nil {
+		err := step.execute(variables, &c.Steps)
+		step.saveResponseDataToLog(step.index, err)
+		if err != nil {
 			return err
 		}
+
 	}
+
+	c.log.waitHistory()
 
 	return nil
 }

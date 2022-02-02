@@ -29,6 +29,7 @@ import (
 var regexVarResp = regexp.MustCompile(`{%RESP\[([0-9]+)\]:([A-Z_]+):ENDRESP%}`)
 
 type ResponseCycle struct {
+	URL        string
 	StatusCode int
 	Body       []byte
 	Duration   time.Duration
