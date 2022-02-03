@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gabriellasaro/load-test/logwriter"
+	"github.com/gabriellasaro/load-test/metrics"
 	"github.com/gabriellasaro/load-test/types"
 	"log"
 	"os"
@@ -129,6 +130,34 @@ func (lt *DataTest) startLogForLoop(loop int) error {
 	return nil
 }
 
+func (lt *DataTest) showAveragesOfSteps() {
+	lt.sendDataToHistory(
+		"\nAVERAGES OF STEPS",
+		true,
+	)
+
+	for _, at := range durationMetrics.AveragesOfSteps() {
+		lt.sendDataToHistory(
+			fmt.Sprintf("\tSTEP [%s]: %s", at.Index(), at.Average()),
+			true,
+		)
+	}
+}
+
+func (lt *DataTest) showAveragesOfLoopSteps() {
+	lt.sendDataToHistory(
+		"\nAVERAGES OF LOOP STEPS",
+		true,
+	)
+
+	for _, at := range durationMetrics.AveragesOfLoopSteps() {
+		lt.sendDataToHistory(
+			fmt.Sprintf("\tLOOP [%s] | STEP [%s]: %s", at.Loop(), at.Index(), at.Average()),
+			true,
+		)
+	}
+}
+
 func (c *Cycle) existsCycles() error {
 	if len(c.Steps) == 0 {
 		return errors.New("no cycle provided")
@@ -137,7 +166,7 @@ func (c *Cycle) existsCycles() error {
 	return nil
 }
 
-func (c *Cycle) execute(variables []*Variable) error {
+func (c *Cycle) execute(variables []*Variable, loop int) error {
 	if err := c.existsCycles(); err != nil {
 		return err
 	}
@@ -156,6 +185,7 @@ func (c *Cycle) execute(variables []*Variable) error {
 			return err
 		}
 
+		step.addDuration(loop)
 	}
 
 	c.log.waitHistory()
@@ -172,6 +202,8 @@ func (c *Cycle) startLogByWorker(destinationFolder types.Str, loop, worker int) 
 		}
 	}
 }
+
+var durationMetrics = metrics.NewMetrics()
 
 func Run(filename string) error {
 	content, err := os.ReadFile(filename)
@@ -220,7 +252,7 @@ func Run(filename string) error {
 			go func(worker int) {
 				defer wgLoop.Done()
 
-				err := cycle.execute(variables)
+				err := cycle.execute(variables, loop)
 				logTime := time.Now().Format("01-02-2006 15:04:05")
 
 				if err != nil {
@@ -246,6 +278,8 @@ func Run(filename string) error {
 		loop += 1
 	}
 
+	load.showAveragesOfLoopSteps()
+	load.showAveragesOfSteps()
 	load.waitHistory()
 
 	return nil

@@ -226,6 +226,12 @@ func (s *Step) saveResponseDataToLog(index int, err error) {
 	}
 }
 
+func (s *Step) addDuration(loop int) {
+	if s.response != nil {
+		durationMetrics.AddDuration(loop, s.index, s.response.Duration.Milliseconds())
+	}
+}
+
 func getStepByIndex(cycle *[]*Step, index int) (*Step, error) {
 	for _, step := range *cycle {
 		if step.index == index {
