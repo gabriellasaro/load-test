@@ -19,66 +19,41 @@ package load
 import (
 	"fmt"
 	"github.com/gabriellasaro/load-test/logwriter"
-	"log"
 	"os"
-	"path"
-	"strings"
 )
 
-type LogByWorker struct {
+type logByLoop struct {
 	loop    int
-	worker  int
 	folder  string
 	history *logwriter.LogWriter
 }
 
-func newLogByWorker(destinationFolder string, loop, worker int) *LogByWorker {
-	return &LogByWorker{
+func newLogByLoop(logFolder string, loop int) *logByLoop {
+	return &logByLoop{
 		loop:   loop,
-		worker: worker,
-		folder: destinationFolder,
+		folder: logFolder,
 	}
 }
 
-func (lw *LogByWorker) logDisabled() bool {
+func (lw *logByLoop) logDisabled() bool {
 	return lw == nil
 }
 
-func (lw *LogByWorker) createFolderForStep(name string) {
-	if err := os.MkdirAll(path.Join(lw.folder, name), 0775); err != nil {
-		log.Fatalln(err)
-	}
-}
-
-func (lw *LogByWorker) saveBody(index int, data []byte, contentType string) {
+func (lw *logByLoop) newLogHistory() {
 	if !lw.logDisabled() {
-		ext := ".txt"
-		if strings.Contains(contentType, "json") {
-			ext = ".json"
-		}
-
-		lw.createFolderForStep("body")
-
-		if err := os.WriteFile(path.Join(lw.folder, fmt.Sprintf("body/%d.resp%s", index, ext)), data, 0666); err != nil {
-			log.Fatalln(err)
-		}
-	}
-}
-
-func (lw *LogByWorker) newLogHistory() {
-	if !lw.logDisabled() {
-		lw.history = logwriter.NewLogWriter(path.Join(lw.folder, "history.txt"))
+		lw.history = logwriter.NewLogWriter(lw.folder + fmt.Sprintf("/%d.loop.txt", lw.loop))
 		lw.history.Writer()
+		lw.history.Send(fmt.Sprintf("LOOP [%d]\n", lw.loop))
 	}
 }
 
-func (lw *LogByWorker) sendDataToHistory(data string) {
+func (lw *logByLoop) sendDataToHistory(data string) {
 	if !lw.logDisabled() {
 		lw.history.Send(data)
 	}
 }
 
-func (lw *LogByWorker) waitHistory() {
+func (lw *logByLoop) waitHistory() {
 	if !lw.logDisabled() {
 		lw.history.Wait()
 	}

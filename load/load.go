@@ -23,7 +23,6 @@ import (
 	"github.com/gabriellasaro/load-test/logwriter"
 	"github.com/gabriellasaro/load-test/metrics"
 	"github.com/gabriellasaro/load-test/types"
-	"log"
 	"os"
 	"path"
 	"sync"
@@ -36,11 +35,6 @@ type DataTest struct {
 	LogFolder types.Str `json:"log"`
 	history   *logwriter.LogWriter
 	Variables []Variable `json:"variables"`
-}
-
-type Cycle struct {
-	log   *LogByWorker
-	Steps []*Step `json:"cycle"`
 }
 
 func (lt *DataTest) totalLoops() int {
@@ -118,16 +112,15 @@ func (lt *DataTest) startLog() error {
 	return nil
 }
 
-func (lt *DataTest) startLogForLoop(loop int) error {
+func (lt *DataTest) startLogForLoop(loop int) (*logByLoop, error) {
 	if lt.LogFolder.TrimSpace().IsEmpty() {
-		return nil
+		return nil, nil
 	}
 
-	if err := startLogFolder(path.Join(lt.logFolder(), fmt.Sprintf("%d", loop))); err != nil {
-		return err
-	}
+	logLoop := newLogByLoop(lt.logFolder(), loop)
+	logLoop.newLogHistory()
 
-	return nil
+	return logLoop, nil
 }
 
 func (lt *DataTest) showAveragesOfSteps() {
@@ -155,51 +148,6 @@ func (lt *DataTest) showAveragesOfLoopSteps() {
 			fmt.Sprintf("\tLOOP [%s] | STEP [%s]: %s", at.Loop(), at.Index(), at.Average()),
 			true,
 		)
-	}
-}
-
-func (c *Cycle) existsCycles() error {
-	if len(c.Steps) == 0 {
-		return errors.New("no cycle provided")
-	}
-
-	return nil
-}
-
-func (c *Cycle) execute(variables []*Variable, loop int) error {
-	if err := c.existsCycles(); err != nil {
-		return err
-	}
-
-	c.log.newLogHistory()
-	c.log.sendDataToHistory(fmt.Sprintf("STEPS TO RUN: %d [0-%d]\n", len(c.Steps), len(c.Steps)-1))
-
-	for i, step := range c.Steps {
-		if err := c.Steps[i].preload(i, c.log); err != nil {
-			return err
-		}
-
-		err := step.execute(variables, &c.Steps)
-		step.saveResponseDataToLog(step.index, err)
-		if err != nil {
-			return err
-		}
-
-		step.addDuration(loop)
-	}
-
-	c.log.waitHistory()
-
-	return nil
-}
-
-func (c *Cycle) startLogByWorker(destinationFolder types.Str, loop, worker int) {
-	if !destinationFolder.TrimSpace().IsEmpty() {
-		c.log = newLogByWorker(path.Join(destinationFolder.TrimSpace().String(), fmt.Sprintf("%d/%d", loop, worker)), loop, worker)
-
-		if err := startLogFolder(c.log.folder); err != nil {
-			log.Fatalln(err)
-		}
 	}
 }
 
@@ -237,7 +185,8 @@ func Run(filename string) error {
 
 		load.sendDataToHistory(fmt.Sprintf("\nLOOP %d\n", loop), true)
 
-		if err := load.startLogForLoop(loop); err != nil {
+		logLoop, err := load.startLogForLoop(loop)
+		if err != nil {
 			return err
 		}
 
@@ -247,12 +196,10 @@ func Run(filename string) error {
 				return err
 			}
 
-			cycle.startLogByWorker(load.LogFolder, loop, w)
-
 			go func(worker int) {
 				defer wgLoop.Done()
 
-				err := cycle.execute(variables, loop)
+				err := cycle.execute(variables, loop, worker, logLoop)
 				logTime := time.Now().Format("01-02-2006 15:04:05")
 
 				if err != nil {
@@ -270,6 +217,7 @@ func Run(filename string) error {
 		}
 
 		wgLoop.Wait()
+		logLoop.waitHistory()
 
 		if loop == load.totalLoops() {
 			break
